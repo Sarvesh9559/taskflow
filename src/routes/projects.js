@@ -5,12 +5,12 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const icons = ['🎨','📱','⚡','🔧','💡','📊','🚀','🔮'];
 
-// GET /api/projects — all projects (admin sees all, member sees assigned)
+// GET /api/projects — all projects (all roles see all projects)
 router.get('/', authenticate, async (req, res) => {
   try {
     let query, params;
-    if (req.user.role === 'admin') {
-      query = `
+    // Both admin and member see all projects (members need projects to create tasks)
+    query = `
         SELECT p.*, u.name as creator_name,
           COUNT(DISTINCT pm.user_id) as member_count,
           COUNT(DISTINCT t.id) as task_count,
@@ -20,21 +20,7 @@ router.get('/', authenticate, async (req, res) => {
         LEFT JOIN project_members pm ON p.id = pm.project_id
         LEFT JOIN tasks t ON p.id = t.project_id
         GROUP BY p.id, u.name ORDER BY p.created_at DESC`;
-      params = [];
-    } else {
-      query = `
-        SELECT p.*, u.name as creator_name,
-          COUNT(DISTINCT pm2.user_id) as member_count,
-          COUNT(DISTINCT t.id) as task_count,
-          COUNT(DISTINCT CASE WHEN t.status='done' THEN t.id END) as done_count
-        FROM projects p
-        JOIN project_members pm ON p.id = pm.project_id AND pm.user_id = $1
-        LEFT JOIN users u ON p.created_by = u.id
-        LEFT JOIN project_members pm2 ON p.id = pm2.project_id
-        LEFT JOIN tasks t ON p.id = t.project_id
-        GROUP BY p.id, u.name ORDER BY p.created_at DESC`;
-      params = [req.user.id];
-    }
+    params = [];
     const { rows } = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
